@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login - Felix Mods</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .box {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 30px;
+      border-radius: 12px;
+      width: 300px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 6px;
+      background: #020617;
+      color: white;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    #msg {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>Felix Mods Login</h2>
+
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+
+  <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
+
+  <p id="msg"></p>
+</div>
+
+<script>
+const supabase = window.supabase.createClient(
+  "https://eaizqmlycblctjmwootw.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhaXpxbWx5Y2JsY3RqbXdvb3R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDM5MDMsImV4cCI6MjA5Mjc3OTkwM30.DyfkUkf70KBM2OJnsRaarLSZqSdPXHKPCClNWRd3S3Q"
+);
+
+// 🔥 Auto create profile (safe)
+async function ensureProfile() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (data) return;
+
+  const { error } = await supabase.from("profiles").insert({
+    id: user.id,
+    username: "user_" + user.id.slice(0,5)
+  });
+
+  if (error) {
+    console.log("Profile error:", error.message);
+  }
+}
+
+// 🟢 REGISTER
+async function register() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const msg = document.getElementById("msg");
+
+  const { data, error } = await supabase.auth.signUp({
+    email, password
+  });
+
+  if (error) {
+    msg.innerText = "❌ " + error.message;
+    return;
+  }
+
+  console.log(data);
+
+  // ⚠️ kalau email confirm aktif
+  if (!data.session) {
+    msg.innerText = "⚠️ Cek email untuk konfirmasi akun!";
+    return;
+  }
+
+  await ensureProfile();
+  msg.innerText = "✅ Register sukses! Sekarang login.";
+}
+
+// 🔵 LOGIN
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const msg = document.getElementById("msg");
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email, password
+  });
+
+  if (error) {
+    msg.innerText = "❌ " + error.message;
+    return;
+  }
+
+  await ensureProfile();
+
+  msg.innerText = "✅ Login sukses!";
+  setTimeout(() => {
+    window.location.href = "dashboard.html";
+  }, 800);
+}
+</script>
+
+</body>
+</html>
