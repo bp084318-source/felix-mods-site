@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Felix Mods</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
+
+  <style>
+    body { margin:0; font-family:Segoe UI; background:#020617; color:white; }
+
+    .topbar {
+      display:flex; justify-content:space-between;
+      padding:15px 20px;
+      border-bottom:1px solid rgba(255,255,255,0.1);
+    }
+
+    .logo {
+      font-weight:bold;
+      background:linear-gradient(90deg,#38bdf8,#a855f7);
+      -webkit-background-clip:text;
+      color:transparent;
+    }
+
+    .mods {
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+      gap:15px; padding:20px;
+    }
+
+    .card {
+      background:rgba(255,255,255,0.05);
+      padding:15px;
+      border-radius:12px;
+      cursor:pointer;
+      transition:0.2s;
+    }
+
+    .card:hover {
+      transform:translateY(-3px);
+    }
+
+    .thumb {
+      width:100%;
+      border-radius:10px;
+      margin-bottom:8px;
+    }
+
+    .btn {
+      border:none;
+      padding:8px 12px;
+      border-radius:8px;
+      background:linear-gradient(90deg,#38bdf8,#a855f7);
+      color:white;
+      cursor:pointer;
+    }
+
+    /* FAB */
+    #uploadBtn {
+      position:fixed;
+      bottom:20px;
+      right:20px;
+      width:55px;
+      height:55px;
+      border-radius:50%;
+      display:none;
+      font-size:20px;
+      transition:transform 0.3s ease;
+    }
+
+    #uploadBtn.active {
+      transform:rotate(45deg);
+    }
+
+    /* upload */
+    #uploadBox {
+      display:none;
+      position:fixed;
+      bottom:90px;
+      right:20px;
+      width:260px;
+      background:#020617;
+      padding:15px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.1);
+    }
+
+    .file-btn {
+      margin-top:10px;
+      padding:10px;
+      border-radius:10px;
+      background:rgba(255,255,255,0.08);
+      text-align:center;
+      cursor:pointer;
+    }
+
+    input, textarea {
+      width:100%;
+      margin-top:8px;
+      padding:10px;
+      border-radius:8px;
+      background:#000;
+      color:white;
+      border:1px solid rgba(255,255,255,0.1);
+    }
+
+    /* MOD DETAIL ANIMATION */
+    .desc {
+      opacity:1;
+      max-height:100px;
+      overflow:hidden;
+      transition:0.3s ease;
+    }
+
+    .detail {
+      max-height:0;
+      overflow:hidden;
+      opacity:0;
+      transition:0.4s ease;
+    }
+
+    .card.active .detail {
+      max-height:400px;
+      opacity:1;
+    }
+
+    .card.active .desc {
+      max-height:0;
+      opacity:0;
+    }
+
+    /* PROFILE */
+    #editModal,#cropModal {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.7);
+      align-items:center;
+      justify-content:center;
+      z-index:999;
+    }
+
+    #editModal > div {
+      background:#020617;
+      padding:20px;
+      border-radius:12px;
+      width:90%;
+      max-width:350px;
+    }
+
+    #avatarPicker {
+      width:90px;
+      height:90px;
+      border-radius:50%;
+      overflow:hidden;
+      margin:auto;
+      cursor:pointer;
+    }
+
+    #avatarPicker img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="topbar">
+  <div class="logo">Felix Mods</div>
+  <div id="userInfo"></div>
+</div>
+
+<div id="mods" class="mods"></div>
+
+<button id="uploadBtn" class="btn">+</button>
+
+<!-- UPLOAD -->
+<div id="uploadBox">
+  <input id="title" placeholder="Title">
+  <textarea id="desc" placeholder="Description"></textarea>
+
+  <div class="file-btn" id="pickFile">📦 File Mod</div>
+  <input type="file" id="fileInput" hidden>
+
+  <div class="file-btn" id="pickThumb">🖼️ Thumbnail</div>
+  <input type="file" id="thumbInput" hidden>
+
+  <img id="thumbPreview" style="display:none;width:100%;margin-top:10px;border-radius:10px;">
+
+  <button class="btn" id="uploadAction">Upload</button>
+  <p id="uploadMsg"></p>
+</div>
+
+<!-- PROFILE -->
+<div id="editModal">
+  <div>
+    <h3>Edit Profile</h3>
+
+    <div id="avatarPicker">
+      <img id="previewAvatar">
+    </div>
+
+    <input type="file" id="avatarInput" hidden>
+
+    <input id="usernameInput" placeholder="Username">
+    <textarea id="bioInput" placeholder="Bio"></textarea>
+
+    <button class="btn" onclick="saveProfile()">Save</button>
+    <button class="btn" onclick="editModal.style.display='none'">Close</button>
+  </div>
+</div>
+
+<!-- CROP -->
+<div id="cropModal">
+  <div>
+    <img id="cropImage" style="max-width:300px">
+    <br><br>
+    <button class="btn" onclick="applyCrop()">Crop</button>
+  </div>
+</div>
+
+<script>
+(async () => {
+
+const client = supabase.createClient(
+  "https://eaizqmlycblctjmwootw.supabase.co",
+  "sb_publishable_VGpOfdcS2GCTsNa6TMkUYA_82yY_mSx"
+);
+
+// ELEMENTS
+const modsDiv = document.getElementById("mods");
+const uploadBtn = document.getElementById("uploadBtn");
+const uploadBox = document.getElementById("uploadBox");
+const userInfo = document.getElementById("userInfo");
+
+const editModal = document.getElementById("editModal");
+const cropModal = document.getElementById("cropModal");
+const cropImage = document.getElementById("cropImage");
+const avatarPicker = document.getElementById("avatarPicker");
+const previewAvatar = document.getElementById("previewAvatar");
+
+const usernameInput = document.getElementById("usernameInput");
+const bioInput = document.getElementById("bioInput");
+
+const fileInput = document.getElementById("fileInput");
+const thumbInput = document.getElementById("thumbInput");
+const thumbPreview = document.getElementById("thumbPreview");
+const uploadMsg = document.getElementById("uploadMsg");
+
+// AUTH
+const { data } = await client.auth.getSession();
+if (!data.session) location.href="login.html";
+const user = data.session.user;
+
+// PROFILE
+let { data: profile } = await client.from("profiles")
+  .select("*").eq("id",user.id).maybeSingle();
+
+const avatar = profile?.avatar_url || "https://ui-avatars.com/api/?name="+user.email;
+
+userInfo.innerHTML = `
+<div style="display:flex;gap:10px;cursor:pointer" onclick="openModal()">
+  <img src="${avatar}" style="width:35px;height:35px;border-radius:50%">
+  <span>${profile?.username || user.email}</span>
+</div>
+`;
+
+if (profile?.role === "modder") uploadBtn.style.display="block";
+
+// LOAD MODS
+async function loadMods(){
+  const { data } = await client.from("mods").select("*");
+  modsDiv.innerHTML="";
+
+  data.forEach(m=>{
+    const el=document.createElement("div");
+    el.className="card";
+
+    const short = (m.description||"").slice(0,70);
+
+    el.innerHTML=`
+      <b>${m.title}</b>
+      <p class="desc">${short}</p>
+
+      <div class="detail">
+        ${m.thumbnail_url?`<img class="thumb" src="${m.thumbnail_url}">`:""}
+        <p>${m.description||""}</p>
+        <a href="${m.file_url}" target="_blank">
+          <button class="btn">Download</button>
+        </a>
+      </div>
+    `;
+
+    el.onclick=()=>el.classList.toggle("active");
+
+    modsDiv.appendChild(el);
+  });
+}
+await loadMods();
+
+// FAB
+let open=false;
+
+uploadBtn.onclick=()=>{
+  open=!open;
+
+  if(open){
+    uploadBox.style.display="block";
+    uploadBtn.classList.add("active");
+    uploadBtn.innerText="×";
+  }else{
+    uploadBox.style.display="none";
+    uploadBtn.classList.remove("active");
+    uploadBtn.innerText="+";
+    thumbPreview.style.display="none";
+    uploadMsg.innerText="";
+  }
+};
+
+// FILES
+let file, thumb;
+
+document.getElementById("pickFile").onclick=()=>fileInput.click();
+document.getElementById("pickThumb").onclick=()=>thumbInput.click();
+
+fileInput.onchange=e=>file=e.target.files[0];
+
+thumbInput.onchange=e=>{
+  thumb=e.target.files[0];
+  if(thumb){
+    thumbPreview.src=URL.createObjectURL(thumb);
+    thumbPreview.style.display="block";
+  }
+};
+
+// UPLOAD
+document.getElementById("uploadAction").onclick=async()=>{
+
+  if(!file) return uploadMsg.innerText="No file";
+
+  const path=`mods/${user.id}/${Date.now()}_${file.name}`;
+  await client.storage.from("mods").upload(path,file);
+
+  const { data:fileUrl } = client.storage.from("mods").getPublicUrl(path);
+
+  let thumbUrl=null;
+
+  if(thumb){
+    const t=`thumbs/${user.id}/${Date.now()}_${thumb.name}`;
+    await client.storage.from("mods").upload(t,thumb);
+    const { data } = client.storage.from("mods").getPublicUrl(t);
+    thumbUrl=data.publicUrl;
+  }
+
+  await client.from("mods").insert({
+    title:title.value,
+    description:desc.value,
+    file_url:fileUrl.publicUrl,
+    thumbnail_url:thumbUrl,
+    author_id:user.id
+  });
+
+  uploadMsg.innerText="Uploaded!";
+  loadMods();
+};
+
+// PROFILE
+window.openModal=()=>{
+  editModal.style.display="flex";
+  previewAvatar.src=avatar;
+  usernameInput.value=profile?.username||"";
+  bioInput.value=profile?.bio||"";
+};
+
+let cropper, avatarFile;
+
+avatarPicker.onclick=()=>avatarInput.click();
+
+avatarInput.onchange=e=>{
+  const f=e.target.files[0];
+  if(!f)return;
+
+  cropModal.style.display="flex";
+  cropImage.src=URL.createObjectURL(f);
+
+  cropImage.onload=()=>{
+    if(cropper) cropper.destroy();
+    cropper=new Cropper(cropImage,{aspectRatio:1});
+  };
+};
+
+window.applyCrop=()=>{
+  const canvas=cropper.getCroppedCanvas({width:300,height:300});
+  canvas.toBlob(b=>{
+    avatarFile=new File([b],"a.png",{type:"image/png"});
+    previewAvatar.src=URL.createObjectURL(b);
+    cropModal.style.display="none";
+    cropper.destroy();
+  });
+};
+
+window.saveProfile=async()=>{
+  let avatarUrl=profile?.avatar_url;
+
+  if(avatarFile){
+    const p=`${user.id}/${Date.now()}.png`;
+    await client.storage.from("avatars").upload(p,avatarFile);
+    const { data }=client.storage.from("avatars").getPublicUrl(p);
+    avatarUrl=data.publicUrl;
+  }
+
+  await client.from("profiles").upsert({
+    id:user.id,
+    username:usernameInput.value,
+    bio:bioInput.value,
+    avatar_url:avatarUrl
+  });
+
+  location.reload();
+};
+
+})();
+</script>
+
+</body>
+    </html>
