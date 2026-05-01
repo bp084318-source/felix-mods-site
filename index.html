@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Felix Mods</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      color: white;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 100px 20px;
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+      color: white;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<section class="hero">
+  <h2>Felix Mods</h2>
+  <p>Platform mod Minecraft native Android</p>
+
+  <div id="auth">Loading...</div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+(async () => {
+
+  // 🔥 anti double declare
+  if (!window.sb) {
+    window.sb = window.supabase.createClient(
+      "https://eaizqmlycblctjmwootw.supabase.co",
+      "sb_publishable_VGpOfdcS2GCTsNa6TMkUYA_82yY_mSx"
+    );
+  }
+
+  const supabase = window.sb;
+  const authDiv = document.getElementById("auth");
+
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+
+    if (data.user) {
+      // ✅ sudah login → tombol dashboard
+      authDiv.innerHTML = `
+        <a class="btn" href="/dashboard.html">Go to Dashboard</a>
+      `;
+    } else {
+      // ❌ belum login → tombol login
+      authDiv.innerHTML = `
+        <a class="btn" href="/login.html">Login</a>
+      `;
+    }
+
+  } catch (err) {
+    console.error(err);
+    authDiv.innerHTML = `<p>Error loading user</p>`;
+  }
+
+})();
+</script>
+
+</body>
+</html>
